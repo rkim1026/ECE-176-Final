@@ -1,4 +1,5 @@
 import os
+import random  # <-- Added the random module!
 import torch
 import torchvision.transforms as T
 from PIL import Image
@@ -34,13 +35,23 @@ class FlatFolderDataset(torch.utils.data.Dataset):
             
         return image, filename
 
-# --- 2. The Masking Logic ---
-def apply_center_mask(img, img_size=128, hole_size=64):
-    s = (img_size - hole_size) // 2
-    e = s + hole_size
+# --- 2. The Random Masking Logic ---
+def apply_random_mask(img, img_size=128, hole_size=64):
+    # Calculate the maximum starting index so the hole doesn't bleed off the edge
+    max_idx = img_size - hole_size
+    
+    # Pick a random top-left corner for the mask
+    start_y = random.randint(0, max_idx)
+    start_x = random.randint(0, max_idx)
+    
     masked_img = img.clone()
-    masked_img[:, s:e, s:e] = 0 
-    gt_patch = img[:, s:e, s:e] 
+    
+    # Apply the mask (zeroing out the pixels) at the random location
+    masked_img[:, start_y:start_y+hole_size, start_x:start_x+hole_size] = 0 
+    
+    # Extract the exact patch that was just erased
+    gt_patch = img[:, start_y:start_y+hole_size, start_x:start_x+hole_size] 
+    
     return masked_img, gt_patch
 
 # --- 3. The Processing Loop ---
@@ -63,7 +74,8 @@ def process_and_save_dataset(input_dir, output_dir, img_size=128, hole_size=64):
     for idx in range(len(dataset)):
         img, filename = dataset[idx] # Our custom dataset returns the filename directly
         
-        masked_img, gt_patch = apply_center_mask(img, img_size, hole_size)
+        # --- Updated to use the new random mask function ---
+        masked_img, gt_patch = apply_random_mask(img, img_size, hole_size)
         
         save_image(masked_img, os.path.join(masked_dir, filename))
         save_image(gt_patch, os.path.join(gt_dir, filename))
